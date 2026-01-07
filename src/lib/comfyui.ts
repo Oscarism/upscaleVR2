@@ -218,35 +218,69 @@ function waitForCompletion(
     });
 }
 
-// Fetch the output image filename from history via proxy
+// Fetch the output image filename from history via proxy (with retries)
 async function fetchOutputImage(promptId: string): Promise<string> {
-    const response = await fetch(`/api/comfyui/history/${promptId}`);
+    const maxRetries = 5;
+    const retryDelay = 1000; // 1 second between retries
 
-    if (!response.ok) {
-        throw new Error('Failed to fetch output');
-    }
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            // Wait a bit before fetching (history may not be immediately available)
+            if (attempt > 0) {
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+            }
 
-    const history = await response.json();
-    const outputs = history[promptId]?.outputs;
+            const response = await fetch(`/api/comfyui/history/${promptId}`);
 
-    if (!outputs) {
-        throw new Error('No output found');
-    }
+            if (!response.ok) {
+                console.error(`History fetch failed with status: ${response.status}`);
+                continue;
+            }
 
-    // Find the SaveImage node output
-    for (const nodeId of Object.keys(outputs)) {
-        const nodeOutput = outputs[nodeId];
-        if (nodeOutput.images && nodeOutput.images.length > 0) {
-            return nodeOutput.images[0].filename;
+            const history = await response.json();
+            console.log('History response:', JSON.stringify(history, null, 2));
+
+            const outputs = history[promptId]?.outputs;
+
+            if (!outputs) {
+                console.log(`Attempt ${attempt + 1}: No outputs yet, retrying...`);
+                continue;
+            }
+
+            // Find the SaveImage node output (node '10' in our workflow)
+            for (const nodeId of Object.keys(outputs)) {
+                const nodeOutput = outputs[nodeId];
+                if (nodeOutput.images && nodeOutput.images.length > 0) {
+                    console.log('Found output image:', nodeOutput.images[0]);
+                    return nodeOutput.images[0].filename;
+                }
+            }
+
+            console.log(`Attempt ${attempt + 1}: No images in outputs, retrying...`);
+        } catch (error) {
+            console.error(`Attempt ${attempt + 1} failed:`, error);
         }
     }
 
-    throw new Error('No output image found');
+    throw new Error('No output image found after retries');
 }
 
 // Get image as blob for comparison
 export async function getImageBlob(url: string): Promise<string> {
+    console.log('Fetching image from:', url);
     const response = await fetch(url);
+
+    if (!response.ok) {
+        console.error('Image fetch failed:', response.status, response.statusText);
+        throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+
     const blob = await response.blob();
+    console.log('Image blob size:', blob.size, 'type:', blob.type);
+
+    if (blob.size === 0) {
+        throw new Error('Received empty image');
+    }
+
     return URL.createObjectURL(blob);
 }
