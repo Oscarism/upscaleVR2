@@ -1,9 +1,10 @@
 // ComfyUI API Service
 // Uses server-side proxy to avoid CORS issues
 
-import { PUBLIC_COMFY_WS_URL } from '$env/static/public';
+import { PUBLIC_COMFY_WS_URL, PUBLIC_COMFY_API_URL } from '$env/static/public';
 
 const COMFY_WS = PUBLIC_COMFY_WS_URL;
+const COMFY_API = PUBLIC_COMFY_API_URL;
 
 export interface UpscaleResult {
     success: boolean;
@@ -148,10 +149,10 @@ export async function upscaleImage(
         onProgress?.('Processing...');
         const resultFilename = await waitForCompletion(clientId, prompt_id, onProgress);
 
-        // Return the result image URL via proxy
+        // Return the result image URL - fetch directly from ComfyUI to bypass Netlify timeout
         return {
             success: true,
-            imageUrl: `/api/comfyui/view?filename=${resultFilename}&type=output`
+            imageUrl: `${COMFY_API}/view?filename=${resultFilename}&type=output`
         };
     } catch (error) {
         return {
