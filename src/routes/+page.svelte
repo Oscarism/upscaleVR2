@@ -42,13 +42,9 @@
 		isProcessing = false;
 
 		if (result.success && result.imageUrl) {
-			// Fetch the image as blob for display
-			try {
-				upscaledImage = await getImageBlob(result.imageUrl);
-				statusMessage = '';
-			} catch {
-				errorMessage = 'Failed to load upscaled image';
-			}
+			// Use direct URL - img tags bypass CORS restrictions
+			upscaledImage = result.imageUrl;
+			statusMessage = '';
 		} else {
 			errorMessage = result.error || 'Upscale failed';
 		}
@@ -57,7 +53,7 @@
 	// Reset to start over
 	function handleReset() {
 		if (originalPreview) URL.revokeObjectURL(originalPreview);
-		if (upscaledImage) URL.revokeObjectURL(upscaledImage);
+		// Note: upscaledImage is now a direct URL, not a blob URL
 
 		selectedFile = null;
 		originalPreview = null;
@@ -67,13 +63,19 @@
 	}
 
 	// Download upscaled image
-	function handleDownload() {
+	async function handleDownload() {
 		if (!upscaledImage) return;
 
-		const a = document.createElement('a');
-		a.href = upscaledImage;
-		a.download = `upscaled_${selectedResolution}_${selectedFile?.name || 'image.png'}`;
-		a.click();
+		try {
+			// Open in new tab for download (CORS prevents direct download)
+			window.open(upscaledImage, '_blank');
+		} catch {
+			// Fallback: create link
+			const a = document.createElement('a');
+			a.href = upscaledImage;
+			a.target = '_blank';
+			a.click();
+		}
 	}
 </script>
 
